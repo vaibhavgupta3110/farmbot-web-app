@@ -14,7 +14,8 @@ export namespace ToolTips {
     is ready to get back to work.`;
 
   export const WEBCAM_SAVE =
-    `Press the edit button to update and save your webcam URL.`;
+    `If you have a webcam, you can view the video stream in this widget.
+    Press the edit button to update and save your webcam URL.`;
 
   export const PERIPHERALS =
     `Use these toggle switches to control FarmBot's peripherals in realtime. To

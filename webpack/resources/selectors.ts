@@ -440,7 +440,7 @@ export function getDeviceAccountSettings(index: ResourceIndex) {
   }
 }
 
-export function getFeed(index: ResourceIndex): TaggedWebcamFeed {
+export function getFeed(index: ResourceIndex): TaggedWebcamFeed | undefined {
   const list = index.byKind.webcam_feed;
   const uuid = list[0];
   const feed = index.references[uuid || -1];
@@ -449,7 +449,9 @@ export function getFeed(index: ResourceIndex): TaggedWebcamFeed {
     sanityCheck(feed);
     return feed;
   } else {
-    throw new Error(`Problem loading webcam feed. Got ${onlyOne}` + JSON.stringify(feed));
+    return undefined;
+    // TODO: HOTFIX: Figure out why `feed` is undefined.
+    // throw new Error(`Problem loading webcam feed. Got ${onlyOne}: ` + JSON.stringify(feed));
   }
 }
 

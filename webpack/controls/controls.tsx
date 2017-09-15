@@ -6,6 +6,8 @@ import { mapStateToProps } from "./state_to_props";
 import { WebcamPanel } from "./webcam_panel";
 import { Props } from "./interfaces";
 import { Move } from "./move";
+import { NoWidget } from "../no_widget";
+import { ToolTips } from "../constants";
 
 @connect(mapStateToProps)
 export class Controls extends React.Component<Props, {}> {
@@ -31,9 +33,11 @@ export class Controls extends React.Component<Props, {}> {
             disabled={arduinoBusy} />
         </Col>
         <Col xs={12} sm={6}>
-          <WebcamPanel bot={this.props.bot}
-            feed={this.props.feed}
-            dispatch={this.props.dispatch} />
+          {this.props.feed
+            ? <WebcamPanel bot={this.props.bot}
+              feed={this.props.feed}
+              dispatch={this.props.dispatch} />
+            : <NoWidget title="Camera" helpText={ToolTips.WEBCAM_SAVE} />}
         </Col>
       </Row>
     </Page>;

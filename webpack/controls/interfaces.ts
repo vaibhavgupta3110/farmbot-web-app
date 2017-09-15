@@ -10,7 +10,7 @@ import {
 export interface Props {
   dispatch: Function;
   bot: BotState;
-  feed: TaggedWebcamFeed;
+  feed: TaggedWebcamFeed | undefined;
   user: TaggedUser | undefined;
   peripherals: TaggedPeripheral[];
   resources: RestResources;
