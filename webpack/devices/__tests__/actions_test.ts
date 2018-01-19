@@ -22,7 +22,25 @@ jest.mock("../../device", () => ({
 }));
 const mockOk = jest.fn();
 const mockInfo = jest.fn();
-jest.mock("farmbot-toastr", () => ({ success: mockOk, info: mockInfo }));
+const mockError = jest.fn();
+jest.mock("farmbot-toastr", () => ({
+  success: mockOk,
+  info: mockInfo,
+  error: mockError
+}));
+
+jest.mock("axios", () => ({
+  default: {
+    get: jest.fn(() => { return Promise.reject("error"); })
+      .mockImplementationOnce(() => { return Promise.resolve(); })
+      .mockImplementationOnce(() => {
+        return Promise.resolve({ data: { tag_name: "v1.0.0" } });
+      })
+      .mockImplementationOnce(() => {
+        return Promise.resolve({ data: { tag_name: "v1.0.0-beta" } });
+      })
+  }
+}));
 
 import * as actions from "../actions";
 import { fakeSequence } from "../../__test_support__/fake_state/resources";
@@ -30,6 +48,8 @@ import { fakeState } from "../../__test_support__/fake_state";
 import { changeStepSize, resetNetwork, resetConnectionInfo } from "../actions";
 import { Actions } from "../../constants";
 import { fakeDevice } from "../../__test_support__/resource_index_builder";
+import { API } from "../../api/index";
+import axios from "axios";
 
 describe("checkControllerUpdates()", function () {
   beforeEach(function () {
@@ -61,13 +81,13 @@ describe("factoryReset()", () => {
   });
 
   it("doesn't call factoryReset", async () => {
+    window.confirm = () => false;
     await actions.factoryReset();
     expect(mockDevice.resetOS).not.toHaveBeenCalled();
   });
 
   it("calls factoryReset", async () => {
-    // tslint:disable-next-line:no-any
-    (global as any).confirm = () => true;
+    window.confirm = () => true;
     await actions.factoryReset();
     expect(mockDevice.resetOS).toHaveBeenCalled();
   });
@@ -96,7 +116,7 @@ describe("emergencyLock() / emergencyUnlock", function () {
   });
 
   it("calls emergencyUnlock", () => {
-    window.confirm = jest.fn(() => true);
+    window.confirm = () => true;
     actions.emergencyUnlock();
     expect(mockDevice.emergencyUnlock).toHaveBeenCalled();
   });
@@ -141,7 +161,14 @@ describe("MCUFactoryReset()", function () {
     jest.clearAllMocks();
   });
 
+  it("doesn't call resetMCU", () => {
+    window.confirm = () => false;
+    actions.MCUFactoryReset();
+    expect(mockDevice.resetMCU).not.toHaveBeenCalled();
+  });
+
   it("calls resetMCU", () => {
+    window.confirm = () => true;
     actions.MCUFactoryReset();
     expect(mockDevice.resetMCU).toHaveBeenCalled();
   });
@@ -180,7 +207,7 @@ describe("homeAll()", function () {
     await actions.homeAll(100);
     expect(mockDevice.home)
       .toHaveBeenCalledWith({ axis: "all", speed: 100 });
-    expect(mockOk).toHaveBeenCalled();
+    expect(mockOk).not.toHaveBeenCalled();
   });
 });
 
@@ -219,9 +246,61 @@ describe("resetConnectionInfo()", () => {
   it("dispatches the right actions", () => {
     const mock1 = jest.fn();
     const d = fakeDevice();
+    API.setBaseUrl("http://localhost:300");
     resetConnectionInfo(d)(mock1, jest.fn());
     expect(mock1).toHaveBeenCalledWith(resetNetwork());
-    expect(mock1).toHaveBeenCalledTimes(2);
+    expect(mock1).toHaveBeenCalledTimes(1);
     expect(mockDevice.readStatus).toHaveBeenCalled();
+  });
+});
+
+describe("fetchReleases()", () => {
+  beforeEach(function () {
+    jest.clearAllMocks();
+  });
+
+  it("fetches latest OS release version", async () => {
+    const dispatch = jest.fn();
+    await actions.fetchReleases("url")(dispatch, jest.fn());
+    expect(axios.get).toHaveBeenCalledWith("url");
+    expect(mockError).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      payload: "1.0.0",
+      type: Actions.FETCH_OS_UPDATE_INFO_OK
+    });
+  });
+
+  it("fetches latest beta OS release version", async () => {
+    const dispatch = jest.fn();
+    await actions.fetchReleases("url", { beta: true })(dispatch, jest.fn());
+    expect(axios.get).toHaveBeenCalledWith("url");
+    expect(mockError).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      payload: "1.0.0-beta",
+      type: Actions.FETCH_BETA_OS_UPDATE_INFO_OK
+    });
+  });
+
+  it("fails to fetches latest OS release version", async () => {
+    const dispatch = jest.fn();
+    await actions.fetchReleases("url")(dispatch, jest.fn());
+    await expect(axios.get).toHaveBeenCalledWith("url");
+    expect(mockError).toHaveBeenCalledWith(
+      "Could not download FarmBot OS update information.");
+    expect(dispatch).toHaveBeenCalledWith({
+      payload: "error",
+      type: "FETCH_OS_UPDATE_INFO_ERROR"
+    });
+  });
+
+  it("fails to fetches latest beta OS release version", async () => {
+    const dispatch = jest.fn();
+    await actions.fetchReleases("url", { beta: true })(dispatch, jest.fn());
+    await expect(axios.get).toHaveBeenCalledWith("url");
+    expect(mockError).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith({
+      payload: "error",
+      type: "FETCH_BETA_OS_UPDATE_INFO_ERROR"
+    });
   });
 });

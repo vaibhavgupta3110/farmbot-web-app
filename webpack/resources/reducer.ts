@@ -6,7 +6,8 @@ import {
   ResourceName,
   sanityCheck,
   isTaggedResource,
-  SpecialStatus
+  SpecialStatus,
+  TaggedSequence
 } from "./tagged_resources";
 import { generateUuid, arrayWrap } from "./util";
 import { EditResourceParams } from "../api/interfaces";
@@ -33,6 +34,11 @@ import {
 import { Actions } from "../constants";
 import { maybeTagSteps as dontTouchThis } from "./sequence_tagging";
 import { GeneralizedError } from "./actions";
+import {
+  recomputeLocalVarDeclaration
+} from "../sequences/step_tiles/tile_move_absolute/variables_support";
+import { equals, defensiveClone } from "../util";
+import { maybeRunLocalstorageMigration } from "../storage_key_translator";
 
 const consumerReducer = combineReducers<RestResources["consumers"]>({
   regimens,
@@ -65,7 +71,10 @@ export function emptyState(): RestResources {
         Regimen: [],
         Sequence: [],
         Tool: [],
-        User: []
+        User: [],
+        FbosConfig: [],
+        FirmwareConfig: [],
+        WebAppConfig: []
       },
       byKindAndId: {},
       references: {}
@@ -117,6 +126,7 @@ export let resourceReducer = generateReducer
         case "Tool":
         case "User":
         case "WebcamFeed":
+        case "WebAppConfig":
           reindexResource(s.index, resource);
           dontTouchThis(resource);
           s.index.references[resource.uuid] = resource;
@@ -143,6 +153,7 @@ export let resourceReducer = generateReducer
       case "Tool":
       case "User":
       case "WebcamFeed":
+      case "WebAppConfig":
       case "Image":
         removeFromIndex(s.index, resource);
         break;
@@ -165,22 +176,26 @@ export let resourceReducer = generateReducer
       throw new Error("BAD UUID IN UPDATE_RESOURCE_OK");
     }
   })
-  .add<TaggedResource>(Actions._RESOURCE_NO, (s, { payload }) => {
+  .add<GeneralizedError>(Actions._RESOURCE_NO, (s, { payload }) => {
     const uuid = payload.uuid;
     const tr = merge(findByUuid(s.index, uuid), payload);
-    tr.specialStatus = SpecialStatus.SAVED;
+    tr.specialStatus = payload.statusBeforeError;
     sanityCheck(tr);
     return s;
   })
   .add<EditResourceParams>(Actions.EDIT_RESOURCE, (s, { payload }) => {
     const uuid = payload.uuid;
     const { update } = payload;
-    const source: TaggedResource = merge(findByUuid(s.index, uuid),
-      { body: update },
-      { specialStatus: SpecialStatus.DIRTY });
-    sanityCheck(source);
-    payload && isTaggedResource(source);
-    dontTouchThis(source);
+    const target = findByUuid(s.index, uuid);
+    const before = defensiveClone(target.body);
+    merge(target, { body: update });
+    if (!equals(before, target.body)) {
+      target.specialStatus = SpecialStatus.DIRTY;
+    }
+    sanityCheck(target);
+    payload && isTaggedResource(target);
+    dontTouchThis(target);
+    maybeRecalculateLocalSequenceVariables(target);
     return s;
   })
   .add<EditResourceParams>(Actions.OVERWRITE_RESOURCE, (s, { payload }) => {
@@ -190,6 +205,7 @@ export let resourceReducer = generateReducer
     original.specialStatus = payload.specialStatus;
     sanityCheck(original);
     payload && isTaggedResource(original);
+    maybeRecalculateLocalSequenceVariables(original);
     dontTouchThis(original);
     return s;
   })
@@ -208,6 +224,9 @@ export let resourceReducer = generateReducer
     return s;
   })
   .add<ResourceReadyPayl>(Actions.RESOURCE_READY, (s, { payload }) => {
+    // TRANSITION POINT: Remove in Mar 18 - RC
+    (payload.name === "WebAppConfig") && maybeRunLocalstorageMigration();
+
     const { name } = payload;
     /** Problem:  Most API resources are plural (array wrapped) resource.
      *            A small subset are singular (`device` and a few others),
@@ -269,7 +288,7 @@ function addToIndex<T>(index: ResourceIndex,
   body: T,
   uuid: string) {
   const tr: TaggedResource =
-    { kind, body, uuid, status: undefined } as any;
+    { kind, body, uuid, specialStatus: SpecialStatus.SAVED } as any;
   sanityCheck(tr);
   index.all.push(tr.uuid);
   index.byKind[tr.kind].push(tr.uuid);
@@ -316,4 +335,16 @@ export function findByUuid(index: ResourceIndex, uuid: string): TaggedResource {
 function reindexResource(i: ResourceIndex, r: TaggedResource) {
   removeFromIndex(i, r);
   addToIndex(i, r.kind, r.body, r.uuid);
+}
+
+/** If the body of a sequence changes, we need to re-traverse the tree to pull
+ * out relevant variable names. We try to avoid this via diffing. */
+function maybeRecalculateLocalSequenceVariables(next: TaggedResource) {
+  (next.kind === "Sequence") && doRecalculateLocalSequenceVariables(next);
+}
+
+function doRecalculateLocalSequenceVariables(next: TaggedSequence) {
+  const recomputed = recomputeLocalVarDeclaration(next.body);
+  next.body.args = recomputed.args;
+  next.body.body = recomputed.body;
 }

@@ -15,8 +15,8 @@ import { ResendVerification } from "./resend_verification";
 import { CreateAccount } from "./create_account";
 
 export class FrontPage extends React.Component<{}, Partial<FrontPageState>> {
-  constructor() {
-    super();
+  constructor(props: {}) {
+    super(props);
     this.state = {
       registrationSent: false,
       regEmail: "",
@@ -47,7 +47,10 @@ export class FrontPage extends React.Component<{}, Partial<FrontPageState>> {
   set = (name: keyof FrontPageState) =>
     (event: React.FormEvent<HTMLInputElement>) => {
       const state: { [name: string]: string } = {};
-      state[name] = (event.currentTarget).value;
+      event.currentTarget.checked;
+      const isChk = (event.currentTarget.type === "checkbox");
+      state[name] = "" + (event.currentTarget)[isChk ? "checked" : "value"];
+
       // WHY THE 2 ms timeout you ask????
       // There was a bug reported in Firefox.
       // I have no idea why, but the checkbox would uncheck itself after being
@@ -143,7 +146,7 @@ export class FrontPage extends React.Component<{}, Partial<FrontPageState>> {
       const PRV_URL = globalConfig.PRIV_URL;
       return (
         <div>
-          <div>
+          <div className={"tos"}>
             <label>{t("I agree to the terms of use")}</label>
             <input type="checkbox"
               onChange={this.set("agreeToTerms")}
@@ -244,10 +247,10 @@ export class FrontPage extends React.Component<{}, Partial<FrontPageState>> {
             <Col xs={12}>
               {t("Setup, customize, and control FarmBot from your")}
               &nbsp;
-            <span className="hidden-xs hidden-sm hidden-md">
+              <span className="hidden-xs hidden-sm">
                 {t("computer")}
               </span>
-              <span className="hidden-xs hidden-lg hidden-xl">
+              <span className="hidden-xs hidden-md hidden-lg hidden-xl">
                 {t("tablet")}
               </span>
               <span className="hidden-sm hidden-md hidden-lg hidden-xl">

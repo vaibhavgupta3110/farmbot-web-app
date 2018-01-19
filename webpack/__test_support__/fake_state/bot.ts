@@ -8,7 +8,8 @@ export let bot: Everything["bot"] = {
     "motors": false,
     "encoders_and_endstops": false,
     "danger_zone": false,
-    "power_and_reset": false
+    "power_and_reset": false,
+    "pin_guard": false,
   },
   "hardware": {
     "gpio_registry": {},
@@ -43,22 +44,19 @@ export let bot: Everything["bot"] = {
       commit: "---",
       target: "---",
       env: "---",
-      node_name: "---"
+      node_name: "---",
+      firmware_commit: "---",
     },
     "user_env": {},
     "process_info": {
       "farmwares": {}
     }
   },
-  axis_inversion: {
-    "x": false,
-    "y": false,
-    "z": false,
-  },
-  encoder_visibility: {
-    "raw_encoders": false,
-    "scaled_encoders": false,
-  },
   "dirty": false,
-  "currentOSVersion": "3.1.6"
+  "currentOSVersion": "3.1.6",
+  "connectivity": {
+    "bot.mqtt": undefined,
+    "user.mqtt": undefined,
+    "user.api": undefined,
+  }
 };

@@ -18,7 +18,7 @@ import { versionOK } from "./reducer";
 import { HttpData, oneOf } from "../util";
 import { Actions, Content } from "../constants";
 import { mcuParamValidator } from "./update_interceptor";
-import { refresh } from "../api/crud";
+import { pingAPI } from "../connectivity/ping_mqtt";
 
 const ON = 1, OFF = 0;
 export type ConfigKey = keyof McuParams;
@@ -125,9 +125,8 @@ export function sync(): Thunk {
 export function execSequence(sequence: Sequence) {
   const noun = "Sequence execution";
   if (sequence.id) {
-    return getDevice()
-      .execSequence(sequence.id)
-      .then(commandOK(noun), commandErr(noun));
+    commandOK(noun)();
+    return getDevice().execSequence(sequence.id).catch(commandErr(noun));
   } else {
     throw new Error("Can't execute unsaved sequences");
   }
@@ -138,25 +137,31 @@ export let saveAccountChanges: Thunk = function (dispatch, getState) {
 };
 
 export let fetchReleases =
-  (url: string) => (dispatch: Function, getState: Function) => {
-    axios
-      .get(url)
-      .then((resp: HttpData<GithubRelease>) => {
-        const version = resp.data.tag_name;
-        const versionWithoutV = version.toLowerCase().replace("v", "");
-        dispatch({
-          type: Actions.FETCH_OS_UPDATE_INFO_OK,
-          payload: versionWithoutV
+  (url: string, options = { beta: false }) =>
+    (dispatch: Function, getState: Function) => {
+      axios
+        .get(url)
+        .then((resp: HttpData<GithubRelease>) => {
+          const version = resp.data.tag_name;
+          const versionWithoutV = version.toLowerCase().replace("v", "");
+          dispatch({
+            type: options.beta
+              ? Actions.FETCH_BETA_OS_UPDATE_INFO_OK
+              : Actions.FETCH_OS_UPDATE_INFO_OK,
+            payload: versionWithoutV
+          });
+        })
+        .catch((ferror) => {
+          !options.beta &&
+            error(t("Could not download FarmBot OS update information."));
+          dispatch({
+            type: options.beta
+              ? "FETCH_BETA_OS_UPDATE_INFO_ERROR"
+              : "FETCH_OS_UPDATE_INFO_ERROR",
+            payload: ferror
+          });
         });
-      })
-      .catch((ferror) => {
-        error(t("Could not download FarmBot OS update information."));
-        dispatch({
-          type: "FETCH_OS_UPDATE_INFO_ERROR",
-          payload: ferror
-        });
-      });
-  };
+    };
 
 export function save(input: TaggedDevice) {
   return function (dispatch: Function, getState: GetState) {
@@ -180,6 +185,9 @@ export function bulkToggleControlPanel(payload: boolean) {
 }
 
 export function MCUFactoryReset() {
+  if (!confirm(t(Content.MCU_RESET_ALERT))) {
+    return;
+  }
   return getDevice().resetMCU();
 }
 
@@ -192,7 +200,7 @@ export function botConfigChange(key: ConfigKey, value: number) {
 }
 
 export function settingToggle(
-  name: ConfigKey, bot: BotState, displayAlert: string | undefined
+  name: ConfigKey, bot: BotState, displayAlert?: string | undefined
 ) {
   if (displayAlert) { alert(displayAlert.replace(/\s+/g, " ")); }
   const noun = "Setting toggle";
@@ -227,7 +235,7 @@ export function homeAll(speed: number) {
   const noun = "'Home All' command";
   getDevice()
     .home({ axis: "all", speed })
-    .then(commandOK(noun), commandErr(noun));
+    .catch(commandErr(noun));
 }
 
 const startUpdate = () => {
@@ -317,7 +325,7 @@ export function resetNetwork(): ReduxAction<{}> {
 export function resetConnectionInfo(dev: TaggedDevice) {
   return function (dispatch: Function, state: GetState) {
     dispatch(resetNetwork());
-    dispatch(refresh(dev));
+    pingAPI();
     getDevice().readStatus();
   };
 }

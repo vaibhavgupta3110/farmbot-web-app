@@ -72,27 +72,12 @@ export class API {
 
   /** "https:" or "http:". NO "//"! */
   private readonly protocol: ProtocolString;
-  /** "localhost", "yahoo.com" */
-  private readonly hostname: string;
-  /** "80", "443" or "" */
-  private readonly port: string;
-  /** "/pathname/x/whatever" or "/foo/" */
-  private readonly pathname: string;
-  /** "?foo=bar" */
-  private readonly search: string;
-  /** "#hashfragment" */
-  private readonly hash: string;
   /** "example.com:3000" */
   private readonly host: string;
 
   constructor(input: string) {
     const url = API.parseURL(input);
     this.protocol = url.protocol as ProtocolString;
-    this.hostname = url.hostname;
-    this.port = url.port;
-    this.pathname = url.pathname;
-    this.search = url.search;
-    this.hash = url.hash;
     this.host = url.host;
   }
 
@@ -130,6 +115,8 @@ export class API {
   get logsPath() { return `${this.baseUrl}/api/logs/`; }
   /** /api/webcam_feed */
   get webcamFeedPath() { return `${this.baseUrl}/api/webcam_feeds/`; }
+  /** /api/webcam_feed */
+  get webAppConfigPath() { return `${this.baseUrl}/api/web_app_config/`; }
   /** /api/users/verify/:token */
   verificationPath = (token: string) => ("/api/users/verify/" + token);
 }

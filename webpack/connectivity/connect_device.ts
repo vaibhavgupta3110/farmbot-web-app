@@ -2,7 +2,7 @@ import { fetchNewDevice, getDevice } from "../device";
 import { dispatchNetworkUp, dispatchNetworkDown } from "./index";
 import { Log } from "../interfaces";
 import { ALLOWED_CHANNEL_NAMES, Farmbot, BotStateTree } from "farmbot";
-import { get, throttle, noop } from "lodash";
+import { throttle, noop } from "lodash";
 import { success, error, info, warning } from "farmbot-toastr";
 import { HardwareState } from "../devices/interfaces";
 import { GetState, ReduxAction } from "../redux/interfaces";
@@ -20,12 +20,12 @@ import { versionOK } from "../devices/reducer";
 import { AuthState } from "../auth/interfaces";
 import { TaggedResource, SpecialStatus } from "../resources/tagged_resources";
 import { autoSync } from "./auto_sync";
-
+import { startPinging } from "./ping_mqtt";
 export const TITLE = "New message from bot";
 
 /** TODO: This ought to be stored in Redux. It is here because of historical
  * reasons. Feel free to factor out when time allows. -RC, 10 OCT 17 */
-const HACKY_FLAGS = {
+export const HACKY_FLAGS = {
   needVersionCheck: true,
   alreadyToldUserAboutMalformedMsg: false
 };
@@ -80,12 +80,12 @@ export function readStatus() {
     .then(() => { commandOK(noun); }, () => { });
 }
 
-const onOffline = () => {
+export const onOffline = () => {
   dispatchNetworkDown("user.mqtt");
   error(t(Content.MQTT_DISCONNECTED));
 };
 
-const changeLastClientConnected = (bot: Farmbot) => () => {
+export const changeLastClientConnected = (bot: Farmbot) => () => {
   bot.setUserEnv({
     "LAST_CLIENT_CONNECTED": JSON.stringify(new Date())
   });
@@ -106,14 +106,12 @@ const onStatus = (dispatch: Function, getState: GetState) =>
     }
   }, 500));
 
-const onSent = (/** The MQTT Client Object (bot.client) */ client: {}) =>
-  (any: {}) => {
-    const theValue = get(client, "connected", false);
-    theValue ?
-      dispatchNetworkUp("user.mqtt") : dispatchNetworkDown("user.mqtt");
-  };
+type Client = { connected?: boolean };
 
-const onLogs = (dispatch: Function) => (msg: Log) => {
+export const onSent = (client: Client) => () => !!client.connected ?
+  dispatchNetworkUp("user.mqtt") : dispatchNetworkDown("user.mqtt");
+
+export const onLogs = (dispatch: Function) => (msg: Log) => {
   bothUp();
   if (isLog(msg)) {
     ifToastWorthy(msg, showLogOnScreen);
@@ -130,25 +128,30 @@ const onLogs = (dispatch: Function) => (msg: Log) => {
   }
 };
 
-function onMalformed() {
+export function onMalformed() {
   bothUp();
   if (!HACKY_FLAGS.alreadyToldUserAboutMalformedMsg) {
     warning(t(Content.MALFORMED_MESSAGE_REC_UPGRADE));
     HACKY_FLAGS.alreadyToldUserAboutMalformedMsg = true;
   }
 }
-const onOnline = () => dispatchNetworkUp("user.mqtt");
 
+export const onOnline = () => dispatchNetworkUp("user.mqtt");
+export const onReconnect =
+  () => warning("Attempting to reconnect to the message broker", "Offline");
 const attachEventListeners =
   (bot: Farmbot, dispatch: Function, getState: GetState) => {
+    startPinging(bot);
+    readStatus().then(changeLastClientConnected(bot), noop);
     bot.on("online", onOnline);
+    bot.on("online", () => bot.readStatus().then(noop, noop));
     bot.on("offline", onOffline);
     bot.on("sent", onSent(bot.client));
     bot.on("logs", onLogs(dispatch));
     bot.on("status", onStatus(dispatch, getState));
     bot.on("malformed", onMalformed);
-    readStatus().then(changeLastClientConnected(bot), noop);
     bot.client.on("message", autoSync(dispatch, getState));
+    bot.client.on("reconnect", onReconnect);
   };
 
 /** Connect to MQTT and attach all relevant event handlers. */

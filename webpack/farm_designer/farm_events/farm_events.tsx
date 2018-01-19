@@ -7,6 +7,7 @@ import { mapStateToProps } from "./map_state_to_props";
 import { FarmEventProps, CalendarOccurrence } from "../interfaces";
 import * as _ from "lodash";
 import * as moment from "moment";
+import { Content } from "../../constants";
 
 export class PureFarmEvents extends React.Component<FarmEventProps, {}> {
   innerRows = (items: CalendarOccurrence[]) => {
@@ -14,27 +15,22 @@ export class PureFarmEvents extends React.Component<FarmEventProps, {}> {
     return _(items)
       .sortBy(x => x.sortKey)
       .value()
-      .map((farmEvent, index) => {
-        const url = `/app/designer/farm_events/` + (farmEvent.id || "UNSAVED_EVENT").toString();
-        let heading: string;
-        let subHeading: JSX.Element;
-
-        if (farmEvent.subheading) {
-          heading = farmEvent.subheading;
-          subHeading = <p style={{ color: "gray" }}>
-            {farmEvent.heading}
-          </p>;
-        } else {
-          heading = farmEvent.heading;
-          subHeading = <p />;
-        }
+      .map((occur, index) => {
+        const url = `/app/designer/farm_events/`
+          + (occur.id || "UNSAVED_EVENT").toString();
+        const heading = occur.subheading
+          ? occur.subheading
+          : occur.heading;
+        const subHeading = occur.subheading
+          ? <p style={{ color: "gray" }}> {occur.heading} </p>
+          : <p />;
 
         return (
           <div
             className="farm-event-data-block"
-            key={`${farmEvent.sortKey}.${index}`}>
+            key={`${occur.sortKey}.${index}`}>
             <div className="farm-event-data-time">
-              {farmEvent.timeStr}
+              {occur.timeStr}
             </div>
             <div className="farm-event-data-executable">
               {heading}
@@ -73,17 +69,54 @@ export class PureFarmEvents extends React.Component<FarmEventProps, {}> {
   renderCalendarRows() {
     const years = _.uniq(_.map(this.props.calendarRows, "year"));
     return years.map(year => {
-      return (
-        <div key={moment(year, "YY").unix()}>
-          <div className="farm-event-year">
-            20{year}
-          </div>
-          {this.renderCalendarRowsInYear(year)}
-        </div>);
+      return <div key={moment(year, "YY").unix()}>
+        <div className="farm-event-year">
+          20{year}
+        </div>
+        {this.renderCalendarRowsInYear(year)}
+      </div>;
     });
   }
 
+  /** FarmEvents will generate some very unexpected results if the user has
+   * not set a timezone for the bot (defaults to 0 UTC offset, which could be
+   * far from user's local time). */
+  tzwarning = () => {
+    return <div className="panel-content">
+      <Row>
+      </Row>
+
+      <div className="farm-events">
+        <h2>Timezone Required</h2>
+        <p>
+          {t(Content.SET_TIMEZONE_HEADER)}
+        </p>
+        <p>
+          <Link to="/app/device">{t(Content.SET_TIMEZONE_BODY)}</Link>
+        </p>
+      </div>
+    </div>;
+  };
+
+  normalContent = () => {
+    return <div className="panel-content">
+      <Row>
+      </Row>
+
+      <div className="farm-events">
+        {this.renderCalendarRows()}
+      </div>
+
+      <Link to="/app/designer/farm_events/add">
+        <button className="plus-button fb-button magenta">
+          <i className="fa fa-2x fa-plus" />
+        </button>
+      </Link>
+    </div>;
+  };
+
   render() {
+
     return (
       <div className="panel-container magenta-panel farm-event-panel">
         <div className="panel-header magenta-panel">
@@ -99,21 +132,7 @@ export class PureFarmEvents extends React.Component<FarmEventProps, {}> {
             </Link>
           </div>
         </div>
-
-        <div className="panel-content">
-          <Row>
-          </Row>
-
-          <div className="farm-events">
-            {this.renderCalendarRows()}
-          </div>
-
-          <Link to="/app/designer/farm_events/add">
-            <button className="plus-button fb-button magenta">
-              <i className="fa fa-2x fa-plus" />
-            </button>
-          </Link>
-        </div>
+        {this.props.timezoneIsSet ? this.normalContent() : this.tzwarning()}
       </div>
     );
   }

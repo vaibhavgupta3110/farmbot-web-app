@@ -14,26 +14,21 @@ import { Popover, Position } from "@blueprintjs/core";
 import { AxisDisplayGroup } from "./axis_display_group";
 import { Session } from "../session";
 import { INVERSION_MAPPING, ENCODER_MAPPING } from "../devices/reducer";
+import { minFwVersionCheck } from "../util";
 
 export class Move extends React.Component<MoveProps, {}> {
 
   toggle = (name: Xyz) => () => {
     Session.invertBool(INVERSION_MAPPING[name]);
-    this.props.dispatch({ type: "INVERT_JOG_BUTTON", payload: name });
   };
 
   toggle_encoder_data =
-  (name: EncoderDisplay) => () => {
-    Session.invertBool(ENCODER_MAPPING[name]);
-    this.props.dispatch({ type: "DISPLAY_ENCODER_DATA", payload: name });
-  }
+    (name: EncoderDisplay) => () => Session.invertBool(ENCODER_MAPPING[name]);
 
   render() {
-    const { sync_status } = this.props.bot.hardware.informational_settings;
-    const x_axis_inverted = this.props.bot.axis_inversion.x;
-    const y_axis_inverted = this.props.bot.axis_inversion.y;
-    const z_axis_inverted = this.props.bot.axis_inversion.z;
-    const { raw_encoders, scaled_encoders } = this.props.bot.encoder_visibility;
+    const { firmware_version } = this.props.bot.hardware.informational_settings;
+    const { x_axis_inverted, y_axis_inverted, z_axis_inverted } = this.props;
+    const { raw_encoders, scaled_encoders } = this.props;
     const xBtnColor = x_axis_inverted ? "green" : "red";
     const yBtnColor = y_axis_inverted ? "green" : "red";
     const zBtnColor = z_axis_inverted ? "green" : "red";
@@ -52,6 +47,10 @@ export class Move extends React.Component<MoveProps, {}> {
     const motor_coordinates = locationData.position;
     const raw_encoders_data = locationData.raw_encoders;
     const scaled_encoders_data = locationData.scaled_encoders;
+    const scaled_encoder_label =
+      minFwVersionCheck(firmware_version, "5.0.5")
+        ? "Scaled Encoder (mm)"
+        : "Scaled Encoder (steps)";
 
     return (
       <Widget>
@@ -116,7 +115,7 @@ export class Move extends React.Component<MoveProps, {}> {
         <WidgetBody>
           <MustBeOnline
             lockOpen={process.env.NODE_ENV !== "production"}
-            status={sync_status}>
+            status={this.props.botToMqttStatus}>
             <label className="text-center">
               {t("MOVE AMOUNT (mm)")}
             </label>
@@ -147,7 +146,7 @@ export class Move extends React.Component<MoveProps, {}> {
             {scaled_encoders &&
               <AxisDisplayGroup
                 position={scaled_encoders_data}
-                label={"Scaled Encoder (steps)"} />}
+                label={scaled_encoder_label} />}
             {raw_encoders &&
               <AxisDisplayGroup
                 position={raw_encoders_data}

@@ -8,6 +8,7 @@ import { box } from "boxed_value";
 import { TaggedResource } from "./resources/tagged_resources";
 import { AxiosResponse } from "axios";
 import { history } from "./history";
+import { ErrorInfo } from "react";
 
 // http://stackoverflow.com/a/901144/1064917
 // Grab a query string param by name, because react-router-redux doesn't
@@ -53,7 +54,7 @@ export interface AxiosErrorResponse {
  *  pairs returned by the /api/xyz endpoint. */
 export function prettyPrintApiErrors(err: AxiosErrorResponse) {
   return _.map(safelyFetchErrors(err),
-    (v, k) => `${(k || "").split("_").join(" ")}: ${v.toString()}`.toLowerCase())
+    (v, k) => `${("" + k).split("_").join(" ")}: ${v.toString()}`.toLowerCase())
     .map(str => _.capitalize(str)).join(" ");
 }
 
@@ -159,13 +160,11 @@ export function stopIE() {
         flunk();
       }
     }
+
+    if (!Object.entries) { flunk(); }
   } catch (error) {
     flunk();
   }
-}
-
-export function pick<T, K extends keyof T>(target: T, key: K): T[K] {
-  return target[key];
 }
 
 /** Useful for calculating uploads and progress bars for Promise.all */
@@ -232,7 +231,7 @@ export function smoothScrollToBottom() {
 }
 
 /** Fancy debug */
-export function fancyDebug(d: {}) {
+export function fancyDebug<T extends {}>(d: T): T {
   console.log(Object
     .keys(d)
     .map(key => [key, (d as Dictionary<string>)[key]])
@@ -243,6 +242,7 @@ export function fancyDebug(d: {}) {
       return `${key} => ${val}`;
     })
     .join("\n"));
+  return d;
 }
 
 export type CowardlyDictionary<T> = Dictionary<T | undefined>;
@@ -322,7 +322,8 @@ export function attachToRoot<P>(type: React.ComponentClass<P>,
 }
 
 /** The firmware will have an integer overflow if you don't check this one. */
-const MAX_INPUT = 32000;
+const MAX_SHORT_INPUT = 32000;
+const MAX_LONG_INPUT = 2000000000;
 const MIN_INPUT = 0;
 
 interface High { outcome: "high"; result: number; }
@@ -331,14 +332,26 @@ interface Malformed { outcome: "malformed"; result: undefined; }
 interface Ok { outcome: "ok", result: number; }
 export type ClampResult = High | Low | Malformed | Ok;
 
+export type IntegerSize = "short" | "long" | undefined;
+
 /** Handle all the possible ways a user could give us bad data or cause an
  * integer overflow in the firmware. */
-export function clampUnsignedInteger(input: string): ClampResult {
+export function clampUnsignedInteger(
+  input: string, size: IntegerSize): ClampResult {
   const result = Math.round(parseInt(input, 10));
+  const maxInput = () => {
+    switch (size) {
+      case "long":
+        return MAX_LONG_INPUT;
+      case "short":
+      default:
+        return MAX_SHORT_INPUT;
+    }
+  };
 
   // Clamp to prevent overflow.
   if (_.isNaN(result)) { return { outcome: "malformed", result: undefined }; }
-  if (result > MAX_INPUT) { return { outcome: "high", result: MAX_INPUT }; }
+  if (result > maxInput()) { return { outcome: "high", result: maxInput() }; }
   if (result < MIN_INPUT) { return { outcome: "low", result: MIN_INPUT }; }
 
   return { outcome: "ok", result };
@@ -460,3 +473,16 @@ export function minFwVersionCheck(current: string | undefined, min: string) {
     return false;
   }
 }
+
+export const catchErrors = (error: Error, errorInfo: ErrorInfo | undefined) => {
+  Rollbar && Rollbar.error && Rollbar.error(error as any);
+};
+
+/** Performs deep object comparison. ONLY WORKS ON JSON-y DATA TYPES. */
+export const equals = <T>(a: T, b: T): boolean => {
+  // Some benchmarks claim that this is slower than `_.isEqual`.
+  // For whatever reason, this is not true for our application.
+  return JSON.stringify(a) === JSON.stringify(b);
+};
+
+export const timestamp = (date = new Date()) => Math.round(date.getTime());

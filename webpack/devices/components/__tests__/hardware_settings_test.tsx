@@ -16,7 +16,8 @@ describe("<HardwareSettings />", () => {
       motors: false,
       encoders_and_endstops: false,
       danger_zone: false,
-      power_and_reset: false
+      power_and_reset: false,
+      pin_guard: false
     };
   }
 
@@ -24,7 +25,8 @@ describe("<HardwareSettings />", () => {
     const wrapper = mount(<HardwareSettings
       controlPanelState={panelState()}
       dispatch={jest.fn()}
-      bot={fakeState().bot} />);
+      bot={fakeState().bot}
+      botToMqttStatus={"up"} />);
     ["expand all", "x axis", "motors"].map(string =>
       expect(wrapper.text().toLowerCase()).toContain(string));
   });
@@ -39,7 +41,8 @@ describe("<HardwareSettings />", () => {
     const wrapper = mount(<HardwareSettings
       controlPanelState={panelState()}
       dispatch={dispatch}
-      bot={fakeState().bot} />);
+      bot={fakeState().bot}
+      botToMqttStatus={"up"} />);
     const button = wrapper.find(buttonElement).at(buttonIndex);
     expect(button.text().toLowerCase()).toContain(buttonText);
     button.simulate("click");

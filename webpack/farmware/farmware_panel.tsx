@@ -47,8 +47,8 @@ export function FarmwareConfigMenu(props: FarmwareConfigMenuProps) {
 }
 
 export class FarmwarePanel extends React.Component<FWProps, Partial<FWState>> {
-  constructor() {
-    super();
+  constructor(props: FWProps) {
+    super(props);
     this.state = { showFirstParty: false };
   }
 
@@ -171,7 +171,7 @@ export class FarmwarePanel extends React.Component<FWProps, Partial<FWState>> {
         </WidgetHeader>
         <WidgetBody>
           <MustBeOnline
-            status={this.props.syncStatus}
+            status={this.props.botToMqttStatus}
             lockOpen={process.env.NODE_ENV !== "production"}>
             <Row>
               <fieldset>
@@ -195,7 +195,9 @@ export class FarmwarePanel extends React.Component<FWProps, Partial<FWState>> {
             <Row>
               <fieldset>
                 <Col xs={12}>
-                  <FBSelect list={this.fwList()}
+                  <FBSelect
+                    key={"farmware_" + this.selectedItem()}
+                    list={this.fwList()}
                     selectedItem={this.selectedItem()}
                     onChange={(x) => {
                       const selectedFarmware = x.value;

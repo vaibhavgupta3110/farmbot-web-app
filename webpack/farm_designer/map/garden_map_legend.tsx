@@ -2,6 +2,7 @@ import * as React from "react";
 import { t } from "i18next";
 import { LayerToggle } from "./layer_toggle";
 import { GardenMapLegendProps } from "./interfaces";
+import { history } from "../../history";
 
 export function GardenMapLegend(props: GardenMapLegendProps) {
 
@@ -29,7 +30,7 @@ export function GardenMapLegend(props: GardenMapLegendProps) {
       style={{ zoom: 1 }}>
       <div
         className={"menu-pullout " + menuClass}
-        onClick={toggle("legendMenuOpen")}>
+        onClick={toggle("legend_menu_open")}>
         <span>
           {t("Menu")}
         </span>
@@ -52,19 +53,19 @@ export function GardenMapLegend(props: GardenMapLegendProps) {
           <LayerToggle
             value={showPlants}
             label={t("Plants?")}
-            onClick={toggle("showPlants")} />
+            onClick={toggle("show_plants")} />
           <LayerToggle
             value={showPoints}
             label={t("Points?")}
-            onClick={toggle("showPoints")} />
+            onClick={toggle("show_points")} />
           <LayerToggle
             value={showSpread}
             label={t("Spread?")}
-            onClick={toggle("showSpread")} />
+            onClick={toggle("show_spread")} />
           <LayerToggle
             value={showFarmbot}
             label={t("FarmBot?")}
-            onClick={toggle("showFarmbot")} />
+            onClick={toggle("show_farmbot")} />
         </div>
         <div className="farmbot-origin">
           <label>
@@ -84,6 +85,13 @@ export function GardenMapLegend(props: GardenMapLegendProps) {
               className={"quadrant " + (botOriginQuadrant === 4 && "selected")}
               onClick={updateBotOriginQuadrant(4)} />
           </div>
+        </div>
+        <div className="move-to-mode">
+          <button
+            className="fb-button gray"
+            onClick={() => history.push("/app/designer/plants/move_to")}>
+            {t("move mode")}
+          </button>
         </div>
       </div>
     </div>

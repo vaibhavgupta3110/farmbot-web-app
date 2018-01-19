@@ -1,45 +1,59 @@
 import * as moment from "moment";
 import { Moment, unitOfTime } from "moment";
-import { times, last } from "lodash";
+import { range } from "lodash";
 import { TimeUnit } from "../../interfaces";
 import { NEVER } from "../edit_fe_form";
 
 interface SchedulerProps {
-  originTime: Moment;
+  startTime: Moment;
+  currentTime: Moment;
+  endTime: Moment;
   intervalSeconds: number;
-  lowerBound: Moment;
-  upperBound?: Moment;
 }
 
 const nextYear = () => moment(moment().add(1, "year"));
 
-export function scheduler({ originTime,
-  intervalSeconds,
-  lowerBound,
-  upperBound }: SchedulerProps): Moment[] {
-  if (!intervalSeconds) { // 0, NaN and friends
-    return [originTime];
-  }
-  upperBound = upperBound || nextYear();
-  // # How many items must we skip to get to the first occurence?
-  const skip_intervals =
-    Math.ceil((lowerBound.unix() - originTime.unix()) / intervalSeconds);
-  // # At what time does the first event occur?
-  const first_item = originTime
-    .clone()
-    .add((skip_intervals * intervalSeconds), "seconds");
-  const list = [first_item];
+/** Limit the number of calendar items displayed for performance reasons.
+ * At the least, `60` provides the next hour of calendar items. */
+export const maxDisplayItems = 60;
+// Match FarmBot OS calendar item execution grace period (1 minute).
+export const gracePeriodSeconds = 60;
 
-  times(60, () => {
-    const x = last(list);
-    if (x) {
-      const item = x.clone().add(intervalSeconds, "seconds");
-      if (item.isBefore(upperBound)) {
-        list.push(item);
-      }
-    }
-  });
-  return list;
+export function scheduler({
+  startTime,
+  currentTime,
+  endTime,
+  intervalSeconds
+}: SchedulerProps): { items: Moment[], shortenedBy: number } {
+  // Convert from Moment to seconds.
+  const eventStartTime = startTime.unix();
+  const eventEndTime = endTime.unix();
+  const cutoffTime = currentTime.unix() - gracePeriodSeconds;
+
+  // Calculate the next Farm Event item time.
+  const timeSinceStart = cutoffTime - eventStartTime;
+  const itemsMissed = Math.ceil(timeSinceStart / intervalSeconds);
+  // Negative timeSinceStart: start time is in the future. No items missed.
+  const nextItemTime = timeSinceStart > 0
+    ? eventStartTime + itemsMissed * intervalSeconds
+    : eventStartTime;
+
+  // Calculate the last displayed Farm Event item time.
+  const itemEndTime = nextItemTime + maxDisplayItems * intervalSeconds;
+  const lastItemTime = itemEndTime < eventEndTime
+    ? itemEndTime
+    : eventEndTime;
+
+  // Calculate the number of future items hidden from the calendar.
+  const shortenedBy = Math.ceil(
+    Math.abs(eventEndTime - lastItemTime) / intervalSeconds);
+
+  /** Generate the list of Farm Event items to display
+   * and convert from seconds back to Moment. */
+  const items = range(nextItemTime, lastItemTime, intervalSeconds)
+    .map(x => moment.unix(x));
+
+  return { items, shortenedBy };
 }
 
 /** Translate farmbot interval names to momentjs interval names */
@@ -55,7 +69,7 @@ const LOOKUP: Record<TimeUnit, unitOfTime.Base> = {
 
 /** GIVEN: A time unit (hourly, weekly, etc) and a repeat (number)
  *  RETURNS: Number of seconds for interval.
- *  EXAMPLE: f(2, "minutely") => 120;
+ *  EXAMPLE: f(2, "minutely") => 120; // "Every two minutes"
  */
 export function farmEventIntervalSeconds(repeat: number, unit: TimeUnit) {
   const momentUnit = LOOKUP[unit];
@@ -75,20 +89,31 @@ export interface TimeLine {
   start_time: string;
   /** ISO string */
   end_time?: string | undefined;
+  current_time?: string;
 }
 /** Takes a subset of FarmEvent<Sequence> data and generates a list of dates. */
-export function scheduleForFarmEvent({ start_time, end_time, repeat, time_unit }:
-  TimeLine): Moment[] {
-  const i = repeat && farmEventIntervalSeconds(repeat, time_unit);
-  if (i && (time_unit !== NEVER)) {
-    const hmm = scheduler({
-      originTime: moment(start_time),
-      lowerBound: moment(start_time),
-      upperBound: end_time ? moment(end_time) : nextYear(),
-      intervalSeconds: i
+export function scheduleForFarmEvent(
+  { start_time, end_time, repeat, time_unit }: TimeLine, timeNow = moment()
+): { items: Moment[], shortenedBy: number } {
+  const interval = repeat && farmEventIntervalSeconds(repeat, time_unit);
+  const gracePeriod = timeNow.clone().subtract(gracePeriodSeconds, "seconds");
+
+  // Farm event is over.
+  if (moment(end_time).isBefore(gracePeriod)) {
+    return { items: [], shortenedBy: 0 };
+  }
+
+  if (interval && (time_unit !== NEVER)) {
+    // Repeating event.
+    const schedule = scheduler({
+      startTime: moment(start_time),
+      currentTime: timeNow,
+      endTime: end_time ? moment(end_time) : nextYear(),
+      intervalSeconds: interval
     });
-    return hmm;
+    return { items: schedule.items, shortenedBy: schedule.shortenedBy };
   } else {
-    return [moment(start_time)];
+    // Non-repeating event.
+    return { items: [moment(start_time)], shortenedBy: 0 };
   }
 }

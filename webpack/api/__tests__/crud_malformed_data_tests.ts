@@ -29,7 +29,8 @@ describe("refresh()", () => {
         "id": 6,
         "name": "summer-pond-726",
         "timezone": "America/Chicago",
-        "last_saw_api": "2017-08-30T20:42:35.854Z"
+        "last_saw_api": "2017-08-30T20:42:35.854Z",
+        "tz_offset_hrs": 0
       },
     };
 
@@ -38,8 +39,8 @@ describe("refresh()", () => {
     const { mock } = dispatch;
     thunk(dispatch);
     setImmediate(() => {
-      expect(mock.calls.length).toEqual(2);
-      // Test call to refesh();
+      expect(dispatch).toHaveBeenCalledTimes(2);
+      // Test call to refresh();
       const firstCall = mock.calls[0][0];
       const dispatchAction1 = get(firstCall, "type", "NO TYPE FOUND");
       expect(dispatchAction1).toBe(Actions.REFRESH_RESOURCE_START);

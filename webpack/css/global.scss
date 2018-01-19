@@ -223,6 +223,20 @@ a {
   }
 }
 
+.pin-bindings-widget {
+  .fa-th-large {
+      color: $dark_gray;
+      margin-top: 0.5rem;
+      margin-left: 0.5rem;
+  }
+  .fb-button {
+    margin-top: 0.5rem;
+  }
+  .bindings-list {
+    margin-bottom: 1rem;
+  }
+}
+
 .full-width {
   width: 100%;
 }
@@ -249,12 +263,22 @@ fieldset {
   opacity: 0.40;
 }
 
-.webcam-stream-valid img {
-  display: flex;
-  max-width: 100%;
-  margin: auto;
-  max-height: 650px;
-  min-height: 300px;
+.webcam-stream-valid {
+  img {
+    display: flex;
+    max-width: 100%;
+    margin: auto;
+    max-height: 650px;
+    min-height: 300px;
+  }
+  iframe {
+    display: flex;
+    width: 100%;
+    margin: auto;
+    max-height: 650px;
+    min-height: 300px;
+    border: none;
+  }
 }
 
 .webcam-stream-unavailable text {
@@ -272,18 +296,6 @@ fieldset {
   position: absolute !important;
   left: 2rem;
   top: 6.2rem;
-}
-
-// .webcam-url-input {
-//   padding-left: 4rem !important;
-// }
-
-.step-drag-ghost-image {
-  max-width: 150px;
-}
-
-.step-drag-ghost-image-big {
-  max-width: 400px;
 }
 
 h3 {
@@ -397,6 +409,7 @@ ul {
   height: 100%;
   opacity: 0.40;
   pointer-events: none;
+  z-index: 10;
   &.banner {
     &:after {
       content: "Not available when device is offline.";
@@ -411,6 +424,7 @@ ul {
       top: 25%;
       left: -2.5%;
       width: 105%;
+      z-index: 10;
     }
   }
 }
@@ -548,7 +562,37 @@ ul {
   td {
     box-shadow: inset 1px 0 0 0 $gray !important;
     color: $dark_gray !important;
-    min-width: 106px;
     word-break: break-word;
+  }
+  td:nth-child(1),
+  td:nth-child(4) {
+    min-width: 106px;
+
+  }
+  td:nth-child(2),
+  td:nth-child(3) {
+    min-width: 120px;
+  }
+}
+
+.release-notes-button {
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.release-notes {
+  max-width: 250px;
+  h1 {
+    font-weight: 300;
+    font-size: 1.5rem;
+  }
+  li:before {
+    content: "• ";
+  }
+  li {
+    font-weight: 300;
+    font-size: 1.1rem;
+    line-height: 1.75rem;
+    margin-bottom: 1rem;
   }
 }

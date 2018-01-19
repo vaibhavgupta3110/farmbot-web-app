@@ -3,9 +3,17 @@ import { generateReducer } from "../redux/generate_reducer";
 import { Actions } from "../constants";
 import { EncoderDisplay } from "../controls/interfaces";
 import { EXPECTED_MAJOR, EXPECTED_MINOR } from "./actions";
-import { Session } from "../session";
 import { BooleanSetting } from "../session_keys";
 import { maybeNegateStatus, maybeNegateConsistency } from "../connectivity/maybe_negate_status";
+import { EdgeStatus } from "../connectivity/interfaces";
+import { ReduxAction } from "../redux/interfaces";
+import { connectivityReducer } from "../connectivity/reducer";
+import { BooleanConfigKey } from "../config_storage/web_app_configs";
+
+const afterEach = (state: BotState, a: ReduxAction<{}>) => {
+  state.connectivity = connectivityReducer(state.connectivity, a);
+  return state;
+};
 
 /**
  * TODO: Refactor this method to use semverCompare() now that it is a thing.
@@ -26,7 +34,7 @@ export function versionOK(stringyVersion = "0.0.0",
   }
 }
 
-export let initialState: BotState = {
+export let initialState = (): BotState => ({
   consistent: true,
   stepSize: 100,
   controlPanelState: {
@@ -34,7 +42,8 @@ export let initialState: BotState = {
     motors: false,
     encoders_and_endstops: false,
     danger_zone: false,
-    power_and_reset: false
+    power_and_reset: false,
+    pin_guard: false,
   },
   hardware: {
     gpio_registry: {},
@@ -65,7 +74,8 @@ export let initialState: BotState = {
       commit: "---",
       target: "---",
       env: "---",
-      node_name: "---"
+      node_name: "---",
+      firmware_commit: "---"
     },
     user_env: {},
     process_info: {
@@ -74,33 +84,29 @@ export let initialState: BotState = {
   },
   dirty: false,
   currentOSVersion: undefined,
-  currentFWVersion: undefined,
-  axis_inversion: {
-    x: !!Session.getBool(BooleanSetting.xAxisInverted),
-    y: !!Session.getBool(BooleanSetting.yAxisInverted),
-    z: !!Session.getBool(BooleanSetting.zAxisInverted),
-  },
-  encoder_visibility: {
-    raw_encoders: !!Session.getBool(BooleanSetting.rawEncoders),
-    scaled_encoders: !!Session.getBool(BooleanSetting.scaledEncoders),
+  currentBetaOSVersion: undefined,
+  connectivity: {
+    "bot.mqtt": undefined,
+    "user.mqtt": undefined,
+    "user.api": undefined
   }
-};
+});
 
 /** Translate X/Y/Z to the name that is used in `localStorage` */
-export const INVERSION_MAPPING: Record<Xyz, BooleanSetting> = {
-  x: BooleanSetting.xAxisInverted,
-  y: BooleanSetting.yAxisInverted,
-  z: BooleanSetting.zAxisInverted,
+export const INVERSION_MAPPING: Record<Xyz, BooleanConfigKey> = {
+  x: BooleanSetting.x_axis_inverted,
+  y: BooleanSetting.y_axis_inverted,
+  z: BooleanSetting.z_axis_inverted,
 };
 
 /** Translate `encode_visibility` key name to the name that is
  * used in `localStorage` */
-export const ENCODER_MAPPING: Record<EncoderDisplay, BooleanSetting> = {
-  raw_encoders: BooleanSetting.rawEncoders,
-  scaled_encoders: BooleanSetting.scaledEncoders,
+export const ENCODER_MAPPING: Record<EncoderDisplay, BooleanConfigKey> = {
+  raw_encoders: BooleanSetting.raw_encoders,
+  scaled_encoders: BooleanSetting.scaled_encoders,
 };
 
-export let botReducer = generateReducer<BotState>(initialState)
+export let botReducer = generateReducer<BotState>(initialState(), afterEach)
   .add<boolean>(Actions.SET_CONSISTENCY, (s, a) => {
     s.consistent = a.payload;
     s.hardware.informational_settings.sync_status = maybeNegateStatus({
@@ -132,6 +138,7 @@ export let botReducer = generateReducer<BotState>(initialState)
     s.controlPanelState.homing_and_calibration = a.payload;
     s.controlPanelState.motors = a.payload;
     s.controlPanelState.encoders_and_endstops = a.payload;
+    s.controlPanelState.pin_guard = a.payload;
     s.controlPanelState.danger_zone = a.payload;
     return s;
   })
@@ -139,12 +146,27 @@ export let botReducer = generateReducer<BotState>(initialState)
     s.currentOSVersion = payload;
     return s;
   })
+  .add<string>(Actions.FETCH_BETA_OS_UPDATE_INFO_OK, (s, { payload }) => {
+    s.currentBetaOSVersion = payload;
+    return s;
+  })
   .add<HardwareState>(Actions.BOT_CHANGE, (state, { payload }) => {
     state.hardware = payload;
     const { informational_settings } = state.hardware;
+    const syncStatus = informational_settings.sync_status;
+    /** USE CASE: You reboot the bot. The old state values are still hanging
+     * around. You think the bot is broke, but it isn't. The FE is holding on
+     * to stale data. */
+    if (syncStatus === "maintenance") {
+      const emptyState = initialState();
+      state.hardware = emptyState.hardware;
+      state.hardware.informational_settings.sync_status = "maintenance";
+      return state;
+    }
+
     const info = {
       consistent: state.consistent,
-      syncStatus: informational_settings.sync_status,
+      syncStatus,
       fbosVersion: informational_settings.controller_version,
       autoSync: !!state.hardware.configuration.auto_sync
     };
@@ -157,27 +179,30 @@ export let botReducer = generateReducer<BotState>(initialState)
     state.hardware.informational_settings.sync_status = nextSyncStatus;
     return state;
   })
-  .add<string>(Actions.FETCH_FW_UPDATE_INFO_OK, (s, { payload }) => {
-    s.currentFWVersion = payload;
+  .add<void>(Actions.STASH_STATUS, (s, a) => {
+    stash(s);
     return s;
   })
-  .add<Xyz>(Actions.INVERT_JOG_BUTTON, (s, { payload }) => {
-    s.axis_inversion[payload] = !s.axis_inversion[payload];
-    return s;
-  })
-  .add<EncoderDisplay>(Actions.DISPLAY_ENCODER_DATA, (s, { payload }) => {
-    s.encoder_visibility[payload] = !s.encoder_visibility[payload];
-    return s;
-  })
-  .add<void>(Actions._RESOURCE_NO, (s, a) => {
-    /** Panic and restore syncStatus to what it was before operation failed. */
-    if (s.consistent && (s.statusStash !== "syncing")) {
-      s.hardware.informational_settings.sync_status = s.statusStash;
+  .add<EdgeStatus>(Actions.NETWORK_EDGE_CHANGE, (s, a) => {
+    const { name, status } = a.payload;
+    switch ((name === "bot.mqtt") && status.state) {
+      case "down":
+        stash(s);
+        s.hardware.informational_settings.sync_status = undefined;
+        break;
+      case "up":
+        const currentState = s.connectivity["bot.mqtt"];
+        // Going from "down" to "up"
+        const backOnline = currentState && currentState.state === "down";
+        backOnline && unstash(s);
     }
     return s;
-  })
-  .add<void>(Actions.STASH_STATUS, (s, a) => {
-    /** Store syncStatus when transitioning from consistent to inconsistent. */
-    s.statusStash = s.hardware.informational_settings.sync_status;
-    return s;
   });
+
+/** Mutate syncStatus when transitioning from consistent to inconsistent. */
+const stash =
+  (s: BotState) => s.statusStash = s.hardware.informational_settings.sync_status;
+
+/** Put the old syncStatus back where it was after bot becomes consistent. */
+const unstash =
+  (s: BotState) => s.hardware.informational_settings.sync_status = s.statusStash;

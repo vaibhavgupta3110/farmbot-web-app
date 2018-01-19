@@ -16,8 +16,8 @@ import {
 import { RestResources, ResourceIndex } from "../resources/interfaces";
 import { TaggedUser } from "../resources/tagged_resources";
 import { WD_ENV } from "../farmware/weed_detector/remote_env/interfaces";
-import { EncoderDisplay } from "../controls/interfaces";
-import { ConnectionStatus } from "../connectivity/interfaces";
+import { ConnectionStatus, ConnectionState, NetworkState } from "../connectivity/interfaces";
+import { IntegerSize } from "../util";
 
 export interface Props {
   userToApi: ConnectionStatus | undefined;
@@ -38,6 +38,7 @@ export interface DeviceAccountSettings {
   id: number;
   name: string;
   timezone?: string | undefined;
+  tz_offset_hrs: number;
   last_saw_api?: string | undefined;
   last_saw_mq?: string | undefined;
 }
@@ -52,8 +53,8 @@ export interface BotState {
   stepSize: number;
   /** The current os version on the github release api */
   currentOSVersion?: string;
-  /** The current fw version on the github release api */
-  currentFWVersion?: string;
+  /** The current beta os version on the github release api */
+  currentBetaOSVersion?: string;
   /** Is the bot in sync with the api */
   dirty: boolean;
   /** The state of the bot, as reported by the bot over MQTT. */
@@ -62,18 +63,13 @@ export interface BotState {
    * spinner or not. */
   isUpdating?: boolean;
   controlPanelState: ControlPanelState;
-  /** The inversions for the jog buttons on the controls page. */
-  axis_inversion: Record<Xyz, boolean>;
-  /** The display setting for encoder data on the controls page. */
-  encoder_visibility: Record<EncoderDisplay, boolean>;
   /** Have all API requests been acknowledged by external services? This flag
    * lets us know if it is safe to do data critical tasks with the bot */
   consistent: boolean;
+  connectivity: ConnectionState;
 }
 
-export interface BotProp {
-  bot: BotState;
-}
+export interface BotProp { bot: BotState; }
 
 /** Status registers for the bot's status */
 export type HardwareState = BotStateTree;
@@ -106,7 +102,12 @@ export interface FarmbotOsProps {
   bot: BotState;
   account: TaggedDevice;
   auth: AuthState;
+  botToMqttStatus: NetworkState;
   dispatch: Function;
+}
+
+export interface FarmbotOsState {
+  osReleaseNotes: string;
 }
 
 export interface CameraSelectionProps {
@@ -128,6 +129,8 @@ export interface McuInputBoxProps {
   bot: BotState;
   setting: McuParamName;
   dispatch: Function;
+  intSize?: IntegerSize;
+  filter?: number;
 }
 
 export interface EStopButtonProps {
@@ -149,13 +152,15 @@ export interface FarmwareProps {
   user_env: Record<string, string | undefined>;
   images: TaggedImage[];
   currentImage: TaggedImage | undefined;
-  syncStatus: SyncStatus;
+  botToMqttStatus: NetworkState;
   farmwares: Dictionary<FarmwareManifest | undefined>;
+  timeOffset: number;
 }
 
 export interface HardwareSettingsProps {
   controlPanelState: ControlPanelState;
   dispatch: Function;
+  botToMqttStatus: NetworkState;
   bot: BotState;
 }
 
@@ -165,4 +170,5 @@ export interface ControlPanelState {
   encoders_and_endstops: boolean;
   danger_zone: boolean;
   power_and_reset: boolean;
+  pin_guard: boolean;
 }

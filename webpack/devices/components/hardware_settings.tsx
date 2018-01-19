@@ -6,6 +6,7 @@ import { MustBeOnline } from "../must_be_online";
 import { SaveBtn } from "../../ui/save_button";
 import { ToolTips } from "../../constants";
 import { DangerZone } from "./hardware_settings/danger_zone";
+import { PinGuard } from "./hardware_settings/pin_guard";
 import { EncodersAndEndStops } from "./hardware_settings/encoders_and_endstops";
 import { Motors } from "./hardware_settings/motors";
 import { SpacePanelHeader } from "./hardware_settings/space_panel_header";
@@ -25,7 +26,7 @@ export class HardwareSettings extends
         <WidgetHeader title="Hardware" helpText={ToolTips.HW_SETTINGS}>
           <MustBeOnline
             hideBanner={true}
-            status={bot.hardware.informational_settings.sync_status}
+            status={this.props.botToMqttStatus}
             lockOpen={process.env.NODE_ENV !== "production"}>
             <SaveBtn
               status={bot.isUpdating ? SpecialStatus.SAVING : SpecialStatus.SAVED}
@@ -47,7 +48,7 @@ export class HardwareSettings extends
             Collapse All
           </button>
           <MustBeOnline
-            status={bot.hardware.informational_settings.sync_status}
+            status={this.props.botToMqttStatus}
             lockOpen={process.env.NODE_ENV !== "production"}>
             <div className="label-headings">
               <SpacePanelHeader />
@@ -59,6 +60,9 @@ export class HardwareSettings extends
               dispatch={dispatch}
               bot={bot} />
             <EncodersAndEndStops
+              dispatch={dispatch}
+              bot={bot} />
+            <PinGuard
               dispatch={dispatch}
               bot={bot} />
             <DangerZone
