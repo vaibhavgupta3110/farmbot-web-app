@@ -101,7 +101,6 @@ export interface CalibrationButtonProps {
 export interface FarmbotOsProps {
   bot: BotState;
   account: TaggedDevice;
-  auth: AuthState;
   botToMqttStatus: NetworkState;
   dispatch: Function;
 }
@@ -155,6 +154,7 @@ export interface FarmwareProps {
   botToMqttStatus: NetworkState;
   farmwares: Dictionary<FarmwareManifest | undefined>;
   timeOffset: number;
+  syncStatus: SyncStatus | undefined;
 }
 
 export interface HardwareSettingsProps {

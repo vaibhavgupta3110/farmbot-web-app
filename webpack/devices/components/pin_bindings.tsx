@@ -2,9 +2,11 @@ import * as React from "react";
 import { t } from "i18next";
 import * as _ from "lodash";
 import {
-  Widget, WidgetBody, WidgetHeader, Row, Col, BlurableInput, DropDownItem
+  Widget, WidgetBody, WidgetHeader,
+  Row, Col,
+  BlurableInput,
+  FBSelect, DropDownItem
 } from "../../ui/index";
-import { FBSelect } from "../../ui/new_fb_select";
 import { ToolTips } from "../../constants";
 import { BotState } from "../interfaces";
 import { registerGpioPin, unregisterGpioPin } from "../actions";
@@ -185,7 +187,8 @@ export class PinBindings
         helpText={ToolTips.PIN_BINDINGS} />
       <WidgetBody>
         <MustBeOnline
-          status={this.props.botToMqttStatus}
+          syncStatus={this.props.bot.hardware.informational_settings.sync_status}
+          networkState={this.props.botToMqttStatus}
           lockOpen={process.env.NODE_ENV !== "production"}>
           <Row>
             <Col xs={ColumnWidth.pin}>
